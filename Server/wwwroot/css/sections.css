@@ -1,28 +1,13 @@
+/* Legacy body-content class - kept for backwards compatibility */
 .body-content {
     width: 100%;
-    min-height: 100vh;
-    
+    min-height: calc(100vh - 90px);
     box-sizing: border-box;
     padding: 2em;
 }
 
-.navigation-bar {
-    width: 20em;
-    height: 100vh;
-    box-sizing: border-box;
-    border-right: 1px black solid;
-    
-    padding: 2em;
-}
-
-.navigation-bar-top {
+/* Main content wrapper for new layout */
+.main-content {
     width: 100%;
-}
-
-.left-navigation-bar {
-    width: 32em;
-    height: 100vh;
-    box-sizing: border-box;
-    
-    padding: 2em;
+    min-height: calc(100vh - 90px);
 }

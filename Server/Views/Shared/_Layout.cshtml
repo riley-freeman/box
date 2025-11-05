@@ -6,30 +6,36 @@
     <link rel="stylesheet" href="css/globals.css"/>
     <link rel="stylesheet" href="css/sections.css"/>
     <link rel="stylesheet" href="css/search-boxes.css"/>
+    <link rel="stylesheet" href="css/index.css"/>
+    <link rel="stylesheet" href="css/navigation.css"/>
 </head>
-<body class="flex">
-<nav class="navigation-bar dark text-white text-white h-center flex flex-direction-column justify-space-between relative">
-    <div class="navigation-bar-top">
-        <a href="/" class="text-white no-decoration">
-            <h1 class="text-m bold block">The Crayon Box 📦</h1>
+<body>
+<nav class="top-navbar">
+    <div class="navbar-left">
+        <a href="/" class="nav-logo">
+            <h1 class="nav-logo-text">The Crayon Box 📦</h1>
         </a>
-        <input type="search" class="nav-search-box"/>
     </div>
 
+    <div class="navbar-center">
+        <div class="nav-search-wrapper">
+            <input type="search" class="nav-search-box" placeholder="Search..."/>
+            <button class="nav-search-button">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M9 17A8 8 0 1 0 9 1a8 8 0 0 0 0 16zM18 18l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>
+        </div>
+    </div>
 
-    <div>
-        <a href="/login" class="text-white no-decoration">Login</a>
-        <a href="/register" class="text-white no-decoration">Register</a>
+    <div class="navbar-right">
+        <a href="/login" class="nav-link">Login</a>
+        <a href="/register" class="nav-link nav-link-primary">Register</a>
     </div>
 </nav>
 
-<div class="_layout-body-content body-content">
+<div class="main-content">
     @RenderBody()
-</div>
-
-<div class="left-navigation-bar dark text-white">
-    <p>@ViewData["Organization"]</p>
-    <p>@ViewData["Ver"]</p>
 </div>
 
 </body>

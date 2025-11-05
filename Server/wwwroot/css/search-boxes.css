@@ -1,4 +1,2 @@
-.nav-search-box {
-    width: 100%;
-    padding: 1em;
-}
+/* Search box styling is now handled in navigation.css */
+/* This file is kept for any additional search components that might be added */

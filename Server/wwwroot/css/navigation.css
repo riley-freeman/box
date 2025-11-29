@@ -40,12 +40,12 @@
 }
 
 .nav-logo-text {
-    font-family: 'Playfair Display', serif;
-    font-size: 1.35rem;
-    font-weight: 700;
+    font-family: 'Press Start 2P', cursive;
+    font-size: 0.95rem;
+    font-weight: 400;
     margin: 0;
     color: var(--black);
-    letter-spacing: -0.3px;
+    letter-spacing: 0;
 }
 
 /* Center section with search */

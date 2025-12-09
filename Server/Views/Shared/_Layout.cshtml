@@ -1,3 +1,16 @@
+@{
+    var mainNavLinks = new[]
+    {
+        new { Text = "Home", Url = "/" },
+        new { Text = "Search", Url = "/search" },
+        new { Text = "Trending", Url = "/trending" },
+        new { Text = "Messages", Url = "/messages" },
+        new { Text = "Notifications", Url = "/messages" },
+        new { Text = "Upload", Url = "/upload" },
+        new { Text = "Profile", Url = "/" }
+    };
+}
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -9,34 +22,28 @@
     <link rel="stylesheet" href="css/index.css"/>
     <link rel="stylesheet" href="css/navigation.css"/>
 </head>
-<body>
-<nav class="top-navbar">
-    <div class="navbar-left">
-        <a href="/" class="nav-logo">
-            <h1 class="nav-logo-text">📦 The Crayon Box</h1>
-        </a>
-    </div>
+<body class="flex-nav-and-body">
 
-    <div class="navbar-center">
-        <div class="nav-search-wrapper">
-            <input type="search" class="nav-search-box" placeholder="Search..."/>
-            <button class="nav-search-button">
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                    <path d="M9 17A8 8 0 1 0 9 1a8 8 0 0 0 0 16zM18 18l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-            </button>
+<header class="side-header">
+    <nav class="side-navibar-main-links">
+        <div class="navbar-icon">
+            <!-- TODO: Add the actual logo, we are dependant on the Operating System-->
+            <h1 class="nav-logo-text">📦</h1>
         </div>
-    </div>
 
-    <div class="navbar-right">
-        <a href="/login" class="nav-link">Login</a>
-        <a href="/register" class="nav-link nav-link-primary">Register</a>
+        <div class=".nav-main-element ">
+            @foreach (var link in mainNavLinks)
+            {
+                <a href="@link.Url" class="nav-link">@link.Text</a>
+            }
+        </div>
+    </nav>
+    <div class="side-navibar-misc-links"">
+        <a href="#" class="nav-link">More</a>
     </div>
-</nav>
-
-<div class="main-content">
+</header>
+<main class="body-content">
     @RenderBody()
-</div>
-
+</main>
 </body>
 </html>

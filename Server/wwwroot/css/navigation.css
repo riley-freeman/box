@@ -1,4 +1,5 @@
 /* Glassmorphism navigation - capsule style */
+/*
 .top-navbar {
     position: fixed;
     top: 1rem;
@@ -19,6 +20,38 @@
     box-shadow: 0 4px 30px rgba(0, 0, 0, 0.08);
     z-index: 1000;
 }
+*/
+
+
+.side-header {
+    posiiton: fixed;
+    top: 0;
+    left: 0;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+
+
+    box-sizing: border-box;
+    width: fit-content;
+    height: 100vh;
+
+    background-color: var(--glass-bg);
+}
+
+.side-navibar-main-links {
+    margin: 0em 0em 1em 1em ;
+    float: left;
+    border-right: 1.5px dashed var(--glass-border);
+}
+
+.side-navibar-misc-links {
+    margin: 0em 0em 1em 1em ;
+    border-right: 1.5px dashed var(--glass-border);
+}
+
+
 
 /* Left section */
 .navbar-left {
@@ -33,6 +66,8 @@
     display: flex;
     align-items: center;
     transition: opacity 0.2s;
+
+    font-size: 3em;
 }
 
 .nav-logo:hover {
@@ -41,7 +76,7 @@
 
 .nav-logo-text {
     font-family: 'Press Start 2P', cursive;
-    font-size: 0.95rem;
+    font-size: 4em;
     font-weight: 400;
     margin: 0;
     color: var(--black);
@@ -133,6 +168,7 @@
 }
 
 .nav-link {
+    display: block;
     text-decoration: none;
     color: var(--black);
     font-family: 'Inter', sans-serif;
@@ -164,11 +200,8 @@
     transform: translateY(-1px);
 }
 
-/* Main content area */
-.main-content {
-    margin-top: 90px;
-    min-height: calc(100vh - 90px);
-}
+
+
 
 /* Responsive design */
 @media (max-width: 768px) {

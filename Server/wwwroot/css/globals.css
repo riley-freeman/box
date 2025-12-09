@@ -7,13 +7,32 @@
     --primary: rgb(255, 126, 66);
     --primary-light: rgb(255, 155, 102);
     --primary-dark: rgb(230, 103, 42);
-    --glass-bg: rgba(255, 255, 255, 0.1);
-    --glass-border: rgba(255, 255, 255, 0.2);
+    --glass-bg: rgb(255, 255, 255);
+    --glass-border: #202020d2;
     --backdrop-blur: blur(10px);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --black: rgb(255, 255, 255);
+        --dark: rgb(46, 46, 46);
+        --white: rgb(21, 21, 21);
+        --primary-light: rgb(230, 103, 42);
+        --primary-dark: rgb(255, 155, 102);
+        --glass-bg: rgb(31, 31, 31);
+        --glass-border: #fff;
+    }
+
+    body {
+        background-color: var(--white) !important;
+    }
+
 }
 
 * {
     box-sizing: border-box;
+    margin: 0;
+    padding: 0;
 }
 
 body {
@@ -30,13 +49,11 @@ h1, h2, h3, h4, h5, h6 {
     font-family: 'Press Start 2P', cursive;
     font-weight: 400;
     font-size: 1rem;
-    color: var(--black);
     line-height: 1.6;
 }
 
 p {
     font-family: 'Inter', sans-serif;
-    color: var(--black);
 }
 
 

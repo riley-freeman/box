@@ -1,13 +1,29 @@
 /* Legacy body-content class - kept for backwards compatibility */
 .body-content {
     width: 100%;
+
     min-height: calc(100vh - 90px);
+    height: 100vh;
+
     box-sizing: border-box;
-    padding: 2em;
+    padding: 0;
+}
+
+.flex-nav-and-body {
+    display: flex;
+
 }
 
 /* Main content wrapper for new layout */
 .main-content {
     width: 100%;
     min-height: calc(100vh - 90px);
+}
+
+.home-container {
+    background-color: black;
+    color: white;
+}
+
+.main-content-container {
 }

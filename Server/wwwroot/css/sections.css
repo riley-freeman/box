@@ -9,9 +9,16 @@
     padding: 0;
 }
 
+.flex-landing-logo-and-main {
+    display: flex;
+}
+
+.flex-landing-logo-and-main main{
+    width: 50%;
+}
+
 .flex-nav-and-body {
     display: flex;
-
 }
 
 /* Main content wrapper for new layout */
@@ -27,3 +34,4 @@
 
 .main-content-container {
 }
+

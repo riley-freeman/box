@@ -1,5 +1,5 @@
 @page
-@model Crayon.Box.Pages.Home
+@model Crayon.Box.Pages.Index
 
 <!DOCTYPE html>
 <html lang="en">
@@ -15,11 +15,57 @@
 <body class="flex-landing-logo-and-main">
 <div class="branding">
     <h1>The Crayon Box</h1>
+    <p id="session_id">@(Model.SessionId ?? "No session")</p>
+    @if (Model.SessionId != null)
+    {
+        <form method="post" action="/api/user/logout">
+            <button type="submit">Logout</button>
+        </form>
+    } else {
+        <form id="login-form">
+            <label for="username">Username</label>
+            <input type="text" id="username-field" name="username"/><br />
+
+            <label for="password">Password</label>
+            <input type="text" id="password-field" name="password"/> <br />
+
+            <button type="submit">LOGIN!</button>
+            <p id="login-error"></p>
+        </form>
+        <a href="/register">register</a>
+    }
 </div>
 
 <main class="body-content">
 </main>
 
+<script>
+    let form = document.querySelector("#login-form");
+    let username = document.querySelector("#username-field");
+    let error_text = document.querySelector("#login-error");
+    form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const formData = new FormData(form);
+
+        try {
+            let res = await fetch("/api/user/login-session", {
+                method: "POST",
+                body: formData
+            });
+
+            if (res.ok) window.location.href = `/@@${username.value}`;
+            else {
+                const result = await res.json();
+                error_text.textContent = result.error;
+                error_text.style.color = "red";
+                console.log('Error:', result.error);
+            }
+        } catch(e) {
+            console.log("Error making request:", e);
+        }
+    })
+
+</script>
+
 </body>
 </html>
-

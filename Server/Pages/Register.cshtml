@@ -1,0 +1,53 @@
+@page "/register"
+@model Crayon.Box.Pages.Register
+
+@{
+    Layout = "_Layout";
+    ViewBag.Title = $"Register";
+    ViewBag.Organization = Model.Organization;
+    ViewBag.Ver = Model.Ver.ToString();
+}
+
+<h1 class="text-l">Register to the Crayon Box!</h1>
+
+<form id="registration-form">
+    <label for="username">Username: </label><br/>
+    <input type="text" id="username-field" name="username"/><br/>
+
+    <label for="email">Email: </label><br/>
+    <input type="email" id="email-field" name="email"/><br/>
+
+    <label for="password">Password: </label><br/>
+    <input type="password" id="password-field" name="password"/><br/>
+
+    <button type="submit">REGISTER!</button>
+</form>
+
+<p id="registration-error"></p>
+
+<script>
+    let form = document.querySelector("#registration-form");
+    let error_text = document.querySelector("#registration-error");
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const formData = new FormData(form);
+        try {
+            const response = await fetch('/api/user/register-account', {
+                method: 'POST',
+                body: formData // Automatically sets correct headers for multipart/form-data
+            });
+
+            if (response.ok) window.location.href = "/";
+            else {
+                const result = await response.json();
+                error_text.textContent = result.error;
+                error_text.style.color = "red";
+                console.log('Error:', result.error);
+            }
+        } catch (error) {
+            console.log('Error sending request:', error);
+        }
+    });
+
+</script>

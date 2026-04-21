@@ -1,14 +1,14 @@
+using System.Text.Json.Serialization;
+
 namespace Crayon.Box.Messages;
 
-public struct ClientInformation(Version clientVersion, string organization)
+public struct ClientInformation(string clientVersion, string organization)
 {
-    public string Organization { get; } = organization;
-    public OperatingSystem Platform { get; } = Environment.OSVersion;
-    private string _version = clientVersion.ToString();
+    public string ClientVersion { get; set; } = clientVersion;
 
-    public Version ClientVersion
-    {
-        get => new(_version);
-        set => _version = value.ToString();
-    }
+    [JsonIgnore]
+    public Version ClientVersionParsed => Version.Parse(ClientVersion);
+
+    public string Organization { get; set; } = organization;
+    public string Platform { get; set; } = Environment.OSVersion.VersionString;
 }

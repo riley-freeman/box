@@ -24,9 +24,9 @@
 
 
 .side-header {
-    posiiton: fixed;
     top: 0;
     left: 0;
+    overflow: hidden;
 
     display: flex;
     flex-direction: column;
@@ -34,14 +34,22 @@
 
 
     box-sizing: border-box;
-    width: fit-content;
+    width: 5em;
+    min-width: 5em;
     height: 100vh;
 
     background-color: var(--glass-bg);
+
+    transition: min-width 0.5s;
+}
+
+.side-header:hover {
+    min-width: 15em;
 }
 
 .side-navibar-main-links {
-    margin: 0em 0em 1em 1em ;
+    margin: 0em 0em 1em 1em;
+    padding-right: 1em;
     float: left;
     border-right: 1.5px dashed var(--glass-border);
 }
@@ -76,7 +84,7 @@
 
 .nav-logo-text {
     font-family: 'Press Start 2P', cursive;
-    font-size: 4em;
+    font-size: 2em;
     font-weight: 400;
     margin: 0;
     color: var(--black);
@@ -167,37 +175,43 @@
     justify-content: flex-end;
 }
 
-.nav-link {
-    display: block;
+.nav-button {
+    display: flex;
+    align-items: center;
+
     text-decoration: none;
     color: var(--black);
     font-family: 'Inter', sans-serif;
     font-size: 0.9rem;
-    padding: 0.65rem 1.5rem;
     border-radius: 50px;
     transition: all 0.3s ease;
     font-weight: 500;
 }
 
-.nav-link:hover {
+.nav-button:hover {
     background: rgba(0, 0, 0, 0.05);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
 }
 
-.nav-link-primary {
-    background: var(--primary);
-    color: var(--white);
-    border: 1px solid var(--primary);
-    font-weight: 600;
-    box-shadow: 0 4px 15px rgba(255, 126, 66, 0.3);
+.nav-button-icon {
+    padding: 1em;
 }
 
-.nav-link-primary:hover {
-    background: var(--primary-light);
-    border-color: var(--primary-light);
-    box-shadow: 0 6px 20px rgba(255, 126, 66, 0.4);
-    transform: translateY(-1px);
+@media (prefers-color-scheme: dark) {
+
+    .nav-button-icon {
+        filter: invert(1);
+    }
+}
+
+.nav-button-text {
+    margin-left: 1.25em
+}
+
+.nav-misc-link {
+    color: white;
+    text-decoration: none;
 }
 
 

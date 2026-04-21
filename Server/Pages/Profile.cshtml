@@ -1,4 +1,5 @@
 @page "/@{id}"
+@using Org.BouncyCastle.Bcpg
 @model Crayon.Box.Pages.Profile
 
 
@@ -9,14 +10,34 @@
     ViewBag.Ver = Model.Ver.ToString();
 }
 
-@if (Model.ClientConnected())
-{
-    <p>Miraculously, @@<span class="bold">@Model.Id</span> is online!</p>
-}
-else
-{
-    <p>Tragically, @@<span class="bold">@Model.Id</span> is offline!</p>
+@if (Model.UserExists) {
+  @if (Model.ProviderConnected)
+  {
+      <div class="user-canvas turubai-render-target"></div>
+      <script type="module">
+
+        import init, { render_profile } from '/turubai/imports.js';
+        await init('/@@@(Model.Id)/theme/binaries.wasm');
+        try {
+          render_profile();
+        } catch (e) {
+          console.log(e);
+          // Expected: WASM returns control to the browser event loop
+          // so spawn_local async tasks can execute and render the UI.
+        }
+      </script>
+  }
+  else
+  {
+      <p class="text-center text-font-fancy">Tragically, @@<span class="bold">@Model.Id</span> is offline!</p>
+      <h1 class="text-xxl text-center" style="margin-top: 8rem;">߹𖥦߹</h1>
+      <p class="text-center text-font-fancy">Try again at a later time.</p>
+  }
+} else {
+  <p class="text-center text-font-fancy">No User "@@<span class="bold">@Model.Id</span>" could be found!</p>
+  <h1 class="text-xxl text-center" style="margin-top: 8rem;">404</h1>
+  <p class="text-center text-font-fancy">But hey, looks like this username is available.</p>
 }
 
-<h1 class="text-l" style="margin-top: 8rem;">Also you're a bit early.</h1>
-<p>This page is under construction.</p>
+    
+

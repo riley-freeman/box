@@ -6,12 +6,19 @@ public enum MessageType
     ClientInfo,
 
     CloseRequest,
-    CloseResponse,
 
     PrivilegeElevation,
     AuthSuccessful,
     AuthFailed,
 
-    PageRequest,
+    GetWasmPage,
+    WasmPageResponse,
+
+    GetResource,
+    ResourceResponse,
+
+    GetDisplayName,
+    DisplayNameResponse,
+
     Invalid = int.MaxValue
 }

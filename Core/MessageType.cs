@@ -20,5 +20,7 @@ public enum MessageType
     GetDisplayName,
     DisplayNameResponse,
 
+    AddThread,
+
     Invalid = int.MaxValue
 }

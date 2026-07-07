@@ -1,10 +1,16 @@
+using System.Diagnostics;
 using System.Net.WebSockets;
 using System.Reflection;
+using System.Runtime.InteropServices.Swift;
 using System.Text;
 using System.Text.Json;
 using Crayon.Box.Messages;
+using Google.Protobuf.WellKnownTypes;
 using Isopoh.Cryptography.Argon2;
+using Microsoft.Extensions.ObjectPool;
 using MySql.Data.MySqlClient;
+using MySqlX.XDevAPI.Common;
+using SQLitePCL;
 
 namespace Crayon.Box;
 
@@ -43,7 +49,10 @@ public class Server
         app.MapPost("/api/user/register-account", UserRegisterAccount);
         app.MapPost("/api/user/login-session", UserLoginSession);
         app.MapPost("/api/user/logout", ConsumerLogout);
+
         app.MapGet("/api/user/display-name", ProviderGetDisplayName);
+        app.MapGet("/api/user/validate-session", ValidateSession);
+        app.MapGet("/api/user/threads", GetUserThreads);
 
 
         app.UseHttpsRedirection();
@@ -71,7 +80,16 @@ public class Server
                                 session_id BINARY(16) NOT NULL PRIMARY KEY,
                                 user_id INT NOT NULL
                             );
-                            """;
+
+                            DROP TABLE IF EXISTS thread_table;
+                            CREATE TABLE thread_table (
+                                thread_id INTEGER AUTO_INCREMENT NOT NULL PRIMARY KEY UNIQUE,
+                                user_id INTEGER NOT NULL,
+                                title VARCHAR(255) NOT NULL,
+                                message TEXT NOT NULL,
+                                date INTEGER NOT NULL
+                            );
+                        """;
         var command = new MySqlCommand(sqlRequest, MySqlConnection);
         command.ExecuteNonQuery();
     }
@@ -79,6 +97,41 @@ public class Server
     public void Run()
     {
         _app.Run();
+    }
+
+    private async Task ValidateSession(HttpContext context)
+    {
+        var username = context.Request.Query["username"].ToString();
+        var sessionId = context.Request.Query["session_id"].ToString();
+
+        if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(sessionId))
+        {
+            context.Response.StatusCode = 400;
+            await context.Response.WriteAsync("Missing username or session_id query parameter.");
+            return;
+        }
+
+        var sql = """
+                    SELECT s.session_id FROM session_table s
+                    JOIN user_table u ON s.user_id = u.user_id
+                    WHERE u.username = @Username AND s.session_id = UUID_TO_BIN(@SessionID);
+                    """;
+        var command = new MySqlCommand(sql, MySqlConnection);
+        command.Parameters.AddWithValue("@Username", username);
+        command.Parameters.AddWithValue("@SessionID", sessionId);
+
+        using var r = command.ExecuteReader();
+        if (r.Read())
+        {
+            context.Response.StatusCode = 200;
+            await context.Response.WriteAsync("OK");
+        }
+        else
+        {
+            context.Response.StatusCode = 401;
+            Console.WriteLine("Failed session validation for user '" + username + "' with session ID '" + sessionId + "'.");
+            await context.Response.WriteAsync("Invalid session.");
+        }
     }
 
     private async Task ProviderClockIn(HttpContext context)
@@ -184,8 +237,28 @@ public class Server
                             break;
                         }
 
+                    case MessageType.AddThread:
+                        {
+                            var threadInfoString = Encoding.UTF8.GetString(message.RawData.ToArray());
+                            var threadInfo = JsonSerializer.Deserialize<ThreadInformation>(threadInfoString);
 
-
+                            var sql = """
+                                        INSERT INTO thread_table (user_id, title, message, date)
+                                        VALUES (
+                                            (SELECT user_id FROM user_table WHERE username = @Username),
+                                            @Title,
+                                            @Message,
+                                            @Date
+                                        );
+                                        """;
+                            var command = new MySqlCommand(sql, MySqlConnection);
+                            command.Parameters.AddWithValue("@Username", username);
+                            command.Parameters.AddWithValue("@Title", threadInfo.Title);
+                            command.Parameters.AddWithValue("@Message", threadInfo.Message);
+                            command.Parameters.AddWithValue("@Date", (int)new DateTimeOffset(threadInfo.Timestamp).ToUnixTimeSeconds());
+                            await command.ExecuteNonQueryAsync();
+                            break;
+                        }
 
                     case MessageType.ResourceResponse:
                     case MessageType.WasmPageResponse:
@@ -196,6 +269,13 @@ public class Server
                     case MessageType.CloseRequest:
                         if (username != null)
                         {
+                            var sqlCommand = new MySqlCommand(
+                                """
+                                DELETE FROM thread_table WHERE user_id = (SELECT user_id FROM user_table WHERE username = @Username);
+                                """, MySqlConnection);
+                            sqlCommand.Parameters.AddWithValue("@Username", username);
+
+                            await sqlCommand.ExecuteNonQueryAsync();
                             Providers.Remove(username);
                         }
                         await Message.SendCloseOutputAsync(webSocket, WebSocketCloseStatus.Empty, string.Empty);
@@ -352,6 +432,63 @@ public class Server
             context.Response.Cookies.Delete("session_id");
         }
         context.Response.Redirect("/");
+    }
+
+    private async Task GetUserThreads(HttpContext context)
+    {
+        var username = context.Request.Query["username"].ToString();
+        var offsetStr = context.Request.Query["offset"].ToString();
+        var sizeStr = context.Request.Query["size"].ToString();
+
+        int offset = 0;
+        if (offsetStr != null)
+        {
+            try
+            {
+                offset = int.Parse(offsetStr);
+            }
+            catch (FormatException) { }
+        }
+
+
+        int size = int.MaxValue;
+        if (sizeStr != null)
+        {
+            try
+            {
+                size = int.Parse(sizeStr);
+            }
+            catch (FormatException) { }
+        }
+
+
+        var sql0 = """
+                    SELECT u.username, t.title, t.message, t.date
+                    FROM thread_table t JOIN user_table u
+                    ON t.user_id = u.user_id WHERE
+                    u.username = @Username
+                    ORDER BY t.date DESC
+                    LIMIT @Offset, @Size;
+                    """;
+
+        var command0 = new MySqlCommand(sql0, MySqlConnection);
+        command0.Parameters.AddWithValue("@Username", username);
+        command0.Parameters.AddWithValue("@Offset", offset);
+        command0.Parameters.AddWithValue("@Size", size);
+
+        using var reader = await command0.ExecuteReaderAsync();
+        var response = new List<SqlThread>();
+        while (await reader.ReadAsync())
+        {
+            response.Add(new SqlThread(
+                reader.GetString(0),
+                reader.GetString(1),
+                reader.GetString(2),
+                reader.GetInt64(3)
+            ));
+        }
+        var jsonResponse = JsonSerializer.Serialize(response);
+        await context.Response.WriteAsync(jsonResponse);
     }
 
     private async Task<Guid> CreateConsumerSession(long userId)

@@ -3,69 +3,113 @@
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <title>@ViewData["Title"]The Crayon Box</title>
 
-    <link rel="stylesheet" href="css/globals.css"/>
-    <link rel="stylesheet" href="css/sections.css"/>
-    <link rel="stylesheet" href="css/search-boxes.css"/>
-    <link rel="stylesheet" href="css/index.css"/>
-    <link rel="stylesheet" href="css/navigation.css"/>
+    <link rel="stylesheet" href="css/globals.css" />
+    <link rel="stylesheet" href="css/fonts.css" />
+    <link rel="stylesheet" href="css/sections.css" />
+    <link rel="stylesheet" href="css/search-boxes.css" />
+    <link rel="stylesheet" href="css/index.css" />
+    <link rel="stylesheet" href="css/navigation.css" />
 </head>
-<body class="flex-landing-logo-and-main">
-<div class="branding">
-    <h1>The Crayon Box</h1>
-    <p id="session_id">@(Model.SessionId ?? "No session")</p>
-    @if (Model.SessionId != null)
-    {
+@if (Model.SessionId != null)
+{
+
+    <body>
+        <h1 class="text-xl font-regular">Home page!</h1>
+        <p id="session_id">@(Model.SessionId ?? "No session")</p>
         <form method="post" action="/api/user/logout">
             <button type="submit">Logout</button>
         </form>
-    } else {
-        <form id="login-form">
-            <label for="username">Username</label>
-            <input type="text" id="username-field" name="username"/><br />
+    </body>
+}
+else
+{
 
-            <label for="password">Password</label>
-            <input type="text" id="password-field" name="password"/> <br />
+    <body>
+        <div class="overflow-hidden paper-holder">
+            <div class="paper flex fill-screen-width fill-screen-height">
+                <div id="login-branding" class="branding max-width max-height">
+                    <p id="login-side-message" class="jacques-francois font-regular">EXPRESSION IS UNIQUE</p>
+                    <div id="landing-page-text-branding">
+                        <h3 class="font-regular julius-sans-one">MARK SADIKI NGISHU <span
+                                class="open-sans">PRESENTS...</span>
+                        </h3>
+                        <h1 class="font-regular text-xxxl ibm-plex-sans-jp">
+                            THE<br />
+                            CRAYON<br />
+                            BOX ■
+                        </h1>
+                        <h3 class="jacques-francois">VERSION <span class="julius-sans-one">26.0</span></h3>
+                    </div>
+                    <img id="landing-page-cardboard" class="no-drag" src="/images/cardboard.png" />
+                </div>
+                <form id="login-form" class="max-width max-height relative">
+                    <div class="login-side-content">
+                        <h1 class="julius-sans-one text-l font-regular text-center">LETS GET STARTED</h1>
+                        <div class="glass-card login-fields">
+                            <div class="glass-input-field open-sans">
+                                <label for="username">Username</label>
+                                <input type="text" id="username-field" name="username" class="semi-bold"
+                                    autocomplete="off" />
+                            </div>
 
-            <button type="submit">LOGIN!</button>
-            <p id="login-error"></p>
-        </form>
-        <a href="/register">register</a>
-    }
-</div>
+                            <div class="glass-input-field open-sans">
+                                <label for="password">Password</label>
+                                <input type="password" id="password-field" name="password" class="semi-bold" />
+                            </div>
 
-<main class="body-content">
-</main>
+                            <button type="submit" id="login-button">Log in</button>
+                        </div>
+                        <p id="login-error" class="text-center"></p>
 
-<script>
-    let form = document.querySelector("#login-form");
-    let username = document.querySelector("#username-field");
-    let error_text = document.querySelector("#login-error");
-    form.addEventListener("submit", async (event) => {
-        event.preventDefault();
-        const formData = new FormData(form);
+                        <div class="register-shit text-center">
+                            <p class="inline open-sans">Don't have an account?</p>
+                            <a class="inline open-sans bold" id="register-button" href="/register">Sign up</a>
+                        </div>
+                    </div>
+                    <img class="rusty-dvd" src="/images/rusty-dvd.png" />
+                </form>
 
-        try {
-            let res = await fetch("/api/user/login-session", {
-                method: "POST",
-                body: formData
-            });
+            </div>
 
-            if (res.ok) window.location.href = `/@@${username.value}`;
-            else {
-                const result = await res.json();
-                error_text.textContent = result.error;
-                error_text.style.color = "red";
-                console.log('Error:', result.error);
-            }
-        } catch(e) {
-            console.log("Error making request:", e);
-        }
-    })
+            <!--
+        
+                                                            -->
+        </div>
 
-</script>
 
-</body>
+        <script>
+            let form = document.querySelector("#login-form");
+            let username = document.querySelector("#username-field");
+            let error_text = document.querySelector("#login-error");
+            form.addEventListener("submit", async (event) => {
+                event.preventDefault();
+                const formData = new FormData(form);
+
+                try {
+                    let res = await fetch("/api/user/login-session", {
+                        method: "POST",
+                        body: formData
+                    });
+
+                    if (res.ok) window.location.href = `/@@${username.value}`;
+                    else {
+                        const result = await res.json();
+                        error_text.textContent = result.error;
+                        error_text.style.color = "red";
+                        console.log('Error:', result.error);
+                    }
+                } catch (e) {
+                    console.log("Error making request:", e);
+                }
+            })
+
+        </script>
+
+    </body>
+}
+
 </html>

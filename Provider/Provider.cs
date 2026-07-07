@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Net.WebSockets;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -12,7 +13,7 @@ using Microsoft.Extensions.ObjectPool;
 
 namespace Crayon.Box;
 
-public class ClientApp : IDisposable
+public class Provider : IDisposable
 {
     private readonly SqliteConnection _sqlConn;
 
@@ -24,34 +25,65 @@ public class ClientApp : IDisposable
     private readonly CancellationTokenSource _cts = new();
     private bool _disposed = false;
 
-    public ClientApp()
+    private string _username = string.Empty;
+    private Guid _sessionId = Guid.Empty;
+
+    private Mutex _ipcMutex;
+
+    public Provider(string? username, string? password)
     {
+        _ipcMutex = new Mutex(false, "CrayonBoxProviderIPCLock");
+
         // Connect to the User's database
         _sqlConn = new SqliteConnection($"Data Source={DefaultDataPath() + "/box.db"}");
         _sqlConn.Open();
 
         using var createResourcesCommand = _sqlConn.CreateCommand();
         createResourcesCommand.CommandText = """
-        CREATE TABLE IF NOT EXISTS resources (
-            original_name VARCHAR(255)  NOT NULL,
-            nickname      VARCHAR(100)  UNIQUE,
-            uuid          BINARY(16)    NOT NULL,
+            CREATE TABLE IF NOT EXISTS resources (
+                original_name VARCHAR(255)  NOT NULL,
+                nickname      VARCHAR(100)  UNIQUE,
+                uuid          BINARY(16)    NOT NULL,
 
-            UNIQUE (uuid)
-        );
-        CREATE TABLE IF NOT EXISTS user_table (
-            username        VARCHAR(32)     NOT NULL UNIQUE,
-            display_name    VARCHAR(32)     NOT NULL UNIQUE,
-            session_id      VARCHAR(36)     NOT NULL UNIQUE
-        );
+                UNIQUE (uuid)
+            );
+            CREATE TABLE IF NOT EXISTS user_table (
+                username        VARCHAR(32)     NOT NULL UNIQUE,
+                display_name    VARCHAR(32)     NOT NULL UNIQUE,
+                session_id      VARCHAR(36)     NOT NULL UNIQUE
+            );
+
+            CREATE TABLE IF NOT EXISTS thread_table (
+                user VARCHAR(32) NOT NULL,
+                title VARCHAR(255) NOT NULL,
+                message TEXT NOT NULL,
+                date INTEGER NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS like_table (
+                liking_user VARCHAR(32) NOT NULL,
+                post_type INTEGER NOT NULL,
+                post INTEGER NOT NULL
+            );
         """;
+
+
         createResourcesCommand.ExecuteReader();
 
-
+        // get the username
+        using var getUser = _sqlConn.CreateCommand();
+        getUser.CommandText = "SELECT username, session_id FROM user_table;";
+        using var r = getUser.ExecuteReader();
+        if (r.Read())
+        {
+            _username = username ?? r.GetString(0);
+            _sessionId = GetSessionIDAsync(_username, password).GetAwaiter().GetResult();
+        }
     }
 
     public async Task ImportFile(string path, string? nickname)
     {
+        _ipcMutex.WaitOne();
         string nick = Path.GetFileName(path);
         if (nickname != null) nick = nickname;
 
@@ -75,10 +107,27 @@ public class ClientApp : IDisposable
         {
             Console.WriteLine($"Failed to import file; it's already imported: {nick}");
         }
+        _ipcMutex.ReleaseMutex();
+    }
+
+    public async Task RemoveFile(string name)
+    {
+        _ipcMutex.WaitOne();
+        var path = LookupFile(name);
+        if (path != null)
+            File.Delete(path);
+
+        using var removeCmd = _sqlConn.CreateCommand();
+        removeCmd.CommandText = @"DELETE FROM resources WHERE nickname = @name;";
+        removeCmd.Parameters.AddWithValue("@name", name);
+
+        await removeCmd.ExecuteNonQueryAsync();
+        _ipcMutex.ReleaseMutex();
     }
 
     private string? LookupFile(string name)
     {
+        _ipcMutex.WaitOne();
         using var getCmd = _sqlConn.CreateCommand();
         getCmd.CommandText = @"SELECT uuid FROM resources WHERE nickname = @name;";
         getCmd.Parameters.AddWithValue("@name", name);
@@ -91,15 +140,55 @@ public class ClientApp : IDisposable
 
             Guid uuid = new(buffer);
             if (File.Exists(DefaultResourcesPath() + "/" + uuid))
+            {
+                _ipcMutex.ReleaseMutex();
                 return DefaultResourcesPath() + "/" + uuid;
+            }
+        }
+        _ipcMutex.ReleaseMutex();
+        return null;
+    }
+
+    public async Task NewThread(string title, string message)
+    {
+        if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(message))
+        {
+            Console.Error.WriteLine("Title and message cannot be empty!");
+            return;
         }
 
-        return null;
+        if (string.IsNullOrWhiteSpace(_username))
+        {
+            Console.Error.WriteLine("You are not logged in.");
+            return;
+        }
 
+        _ipcMutex.WaitOne();
+
+        using var cmd = _sqlConn.CreateCommand();
+        cmd.CommandText = @"
+            INSERT INTO thread_table (user, title, message, date)
+            VALUES (@User, @Title, @Message, unixepoch());";
+
+        cmd.Parameters.AddWithValue("@User", _username);
+        cmd.Parameters.AddWithValue("@Title", title);
+        cmd.Parameters.AddWithValue("@Message", message);
+
+        await cmd.ExecuteNonQueryAsync();
+
+        if (_server != null)
+        {
+            var threadInfo = new ThreadInformation(title, message, _username, DateTime.Now);
+            var threadBytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(threadInfo));
+            await _server.SendMessageAsync(new Message(MessageType.AddThread, threadBytes), null);
+        }
+
+        _ipcMutex.ReleaseMutex();
     }
 
     public async Task SetDisplayName(string displayName)
     {
+        _ipcMutex.WaitOne();
         using var cmd = _sqlConn.CreateCommand();
         cmd.CommandText = "UPDATE user_table SET display_name = @DisplayName;";
         cmd.Parameters.AddWithValue("@DisplayName", displayName);
@@ -108,23 +197,40 @@ public class ClientApp : IDisposable
             Console.WriteLine("No active session — connect first.");
         else
             Console.WriteLine($"Display name updated to '{displayName}'.");
+        _ipcMutex.ReleaseMutex();
     }
 
-    public async Task RemoveFile(string name)
+    public async Task<bool> ValidateSession(string username, Guid sessionId)
     {
+        HttpClient client = new HttpClient();
+        client.BaseAddress = new Uri($"https://{Config.ServerAddress}:{Config.ServerPort}");
 
-        var path = LookupFile(name);
-        if (path != null)
-            File.Delete(path);
+        var response = await client.GetAsync(
+            $"/api/user/validate-session?username={username}&session_id={sessionId.ToString()}",
+            CancellationToken.None
+        );
 
-        using var removeCmd = _sqlConn.CreateCommand();
-        removeCmd.CommandText = @"DELETE FROM resources WHERE nickname = @name;";
-        removeCmd.Parameters.AddWithValue("@name", name);
+        if (response.StatusCode == HttpStatusCode.OK)
+        {
+            Console.WriteLine($"Welcome back, {username}!");
+            return true;
+        }
+        else
+        {
+            var command = _sqlConn.CreateCommand();
+            command.CommandText = """
+                DELETE FROM user_table WHERE username = @Username AND session_id = @SessionID;
+            """;
+            command.Parameters.AddWithValue("@Username", username);
+            command.Parameters.AddWithValue("@SessionID", sessionId);
+            command.ExecuteNonQuery();
 
-        await removeCmd.ExecuteNonQueryAsync();
+            Console.WriteLine("Session is invalid. Please log in again.");
+            return false;
+        }
     }
 
-    public void Serve(Uri uri, string? username, string? password)
+    public void Serve(Uri uri)
     {
         _cws = ConnectSocket(uri, MaxConnectionRetryTimeout, ConnectionRetryTimeoutStep);
         _server = new ServerHandle(_cws);
@@ -159,14 +265,49 @@ public class ClientApp : IDisposable
             await _server.SendMessageAsync(clientInfoMessage, null);
 
             // Get a session ID & update the client's privileges.
-            var sessionId = await GetSessionIDAsync(username, password);
-            var auth = new Authorization(sessionId);
+            var auth = new Authorization(_sessionId);
 
             var authBytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(auth));
             await new Message(MessageType.PrivilegeElevation, authBytes).SendAsync(_cws);
 
+
+            // Send over the data that should be cached 
+            var threads = await GetThreadsAsync();
+            foreach (var thread in threads)
+            {
+                var threadBytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(thread));
+                await _server.SendMessageAsync(new Message(MessageType.AddThread, threadBytes), null);
+            }
+
             await EnterMessageLoop(ct);
         }).Wait();
+    }
+
+    public async Task<ThreadInformation[]> GetThreadsAsync()
+    {
+        List<ThreadInformation> threads = new List<ThreadInformation>();
+
+        using var cmd = _sqlConn.CreateCommand();
+        cmd.CommandText = "SELECT user, title, message, date FROM thread_table ORDER BY date DESC;";
+
+        using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            string author = reader.GetString(0);
+            string title = reader.GetString(1);
+            string message = reader.GetString(2);
+            DateTime timestamp = DateTimeOffset.FromUnixTimeSeconds(reader.GetInt64(3)).DateTime;
+
+            threads.Add(new ThreadInformation
+            {
+                Author = author,
+                Title = title,
+                Message = message,
+                Timestamp = timestamp
+            });
+        }
+
+        return threads.ToArray();
     }
 
     public async Task<Guid> GetSessionIDAsync(string? username, string? password)
@@ -178,6 +319,13 @@ public class ClientApp : IDisposable
             await using var r = await getUser.ExecuteReaderAsync();
             if (!await r.ReadAsync())
                 throw new SqliteException("No cached session.", 0);
+
+            var cachedUsername = r.GetString(0);
+            var cachedSessionId = new Guid(r.GetString(1));
+            var res = ValidateSession(cachedUsername, cachedSessionId).GetAwaiter().GetResult();
+            if (res == false)
+                throw new Exception();
+
             return Guid.Parse(r.GetString(1));
         }
         catch (Exception)
@@ -210,17 +358,29 @@ public class ClientApp : IDisposable
                 }
             }
 
-            using var command0 = _sqlConn.CreateCommand();
-            command0.CommandText = """
-                DELETE FROM user_table;
-                INSERT INTO user_table (username, display_name, session_id) VALUES (@Username, @DisplayName, @SessionID);
-            """;
-            command0.Parameters.AddWithValue("@Username", u);
-            command0.Parameters.AddWithValue("@DisplayName", u);
-            command0.Parameters.AddWithValue("@SessionID", body!.Value.SessionID().ToString());
-            await command0.ExecuteNonQueryAsync();
+            int rows = 0;
+            var sessionId = body!.Value.SessionID();
+            using (var command0 = _sqlConn.CreateCommand())
+            {
+                command0.CommandText = "UPDATE user_table SET session_id = @SessionID WHERE username = @Username;";
+                command0.Parameters.AddWithValue("@Username", u);
+                command0.Parameters.AddWithValue("@SessionID", sessionId);
+                rows = await command0.ExecuteNonQueryAsync();
+            }
+            if (rows == 0)
+            {
+                using var command1 = _sqlConn.CreateCommand();
+                command1.CommandText = """
+                    DELETE FROM user_table;
+                    INSERT INTO user_table (username, display_name, session_id) VALUES (@Username, @DisplayName, @SessionID);
+                """;
+                command1.Parameters.AddWithValue("@Username", u);
+                command1.Parameters.AddWithValue("@DisplayName", u);
+                command1.Parameters.AddWithValue("@SessionID", sessionId);
+                await command1.ExecuteNonQueryAsync();
+            }
 
-            return body!.Value.SessionID();
+            return sessionId;
         }
     }
 
@@ -240,7 +400,7 @@ public class ClientApp : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    ~ClientApp()
+    ~Provider()
     {
         if (!_disposed) Dispose();
     }

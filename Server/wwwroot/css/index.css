@@ -3,9 +3,105 @@
     color: #ffffff;
 }
 
+.paper-holder {
+    background-color: #151515;
+    width: 100vw;
+    height: 100vh;
 
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
 
+.paper {
+    max-width: calc(100vw - 2em);
+    max-height: calc(100vh - 2em);
+    overflow: hidden;
+}
 
+#login-branding {
+    background-color: white;
+    color: #0b0b0b;
+    position: relative;
 
+    display: grid;
+    grid-template-columns: repeat(20, minmax(0, 1fr));
+    grid-template-rows: repeat(20, minmax(0, 1fr));
+}
 
+#login-side-message {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    z-index: 0;
+    font-size: 5em;
+    filter: blur(12px);
+    white-space: nowrap;
+    transform: translate(-47%, -50%) rotate(-90deg);
+}
 
+#landing-page-text-branding {
+    grid-column: 1 / -1;
+    grid-row: 6 / 10;
+    place-self: center;
+}
+
+#landing-page-cardboard {
+    grid-column: 1 / 20;
+    grid-row: 16 / 20;
+    place-self: center;
+    min-width: 0;
+    min-height: 0;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+
+    transform: scale(4);
+    z-index: 1;
+}
+
+#login-form {
+    background-image: url("/images/ripped-space.png");
+    background-size: cover;
+    background-position: 0% 75%;
+    background-color: white;
+    color: white;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 3em;
+}
+
+.login-fields {
+    width: 30em;
+    margin: 3em auto;
+
+    display: flex;
+    flex-direction: column;
+    gap: 1em;
+}
+
+#login-button {
+    background-color: #FFB0F7;
+    color: white;
+    border-radius: 50em;
+    border-width: 0;
+
+    width: 100%;
+    padding: 0.25em 0;
+}
+
+#register-button {
+    color: #FFB0F7;
+    text-decoration: none;
+}
+
+.rusty-dvd {
+    width: 30em;
+    height: 30em;
+
+    position: absolute;
+    bottom: -15em;
+    right: -15em;
+}

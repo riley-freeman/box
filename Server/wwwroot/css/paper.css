@@ -1,11 +1,12 @@
 .printed-paper-effect {
-    margin: 1em;
-    
+    /* margin: 1em; */
+
     /* padding: 1em; */
     /* background-color: var(--white); */
 
-    width: calc(100% - 2em);
-    height: calc(100% - 2em);
+    /* width: calc(100% - 2em); */
+    /* height: calc(100% - 2em); */
+    height: 100%;
 }
 
 .user-canvas {
@@ -13,11 +14,11 @@
     width: auto;
     height: 100%;
     max-width: 100%;
-    aspect-ratio: 17/22;
+    /* aspect-ratio: 17/22; */
 
     margin: auto;
-    
-    transform: rotate(0.5deg);
+
+    /* transform: rotate(0.5deg); */
     background-color: white;
 
     box-shadow: 0 0 10px 1px black;
@@ -25,4 +26,5 @@
 
 .user-canvas * {
     all: initial;
+    background-color: inherit;
 }

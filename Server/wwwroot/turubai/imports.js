@@ -22,43 +22,219 @@ function getTurubaiImports(wasmMemory) {
         return new TextDecoder().decode(new Uint8Array(wasmMemory.buffer, ptr, len));
     }
 
+    // Color variant -> CSS color string.
+    // Variant 0 = Custom (RGBA packed as (r<<24)|(g<<16)|(b<<8)|a).
+    function cssColor(variant, packed) {
+        const map = {
+            1: "inherit",
+            128: "red", 129: "orange", 130: "yellow", 131: "green",
+            132: "blue", 133: "indigo", 134: "purple", 135: "pink",
+        };
+        if (variant in map) return map[variant];
+        const r = (packed >>> 24) & 0xFF;
+        const g = (packed >>> 16) & 0xFF;
+        const b = (packed >>> 8) & 0xFF;
+        const a = (packed & 0xFF) / 255;
+        return `rgba(${r},${g},${b},${a})`;
+    }
+
+    // Unit variant (0=Auto, 1=Pixels, 2=Percent, 3=Em) -> CSS string.
+    function cssUnit(variant, value) {
+        switch (variant) {
+            case 0: return "auto";
+            case 1: return `${value}px`;
+            case 2: return `${value * 100}%`;
+            case 3: return `${value}em`;
+            default: return "auto";
+        }
+    }
+
     return {
         turubai: {
-            window_get_global: () =>
-                store(window),
+            // ── Context ────────────────────────────────────────────────────────
 
-            window_get_document: (win) =>
-                store(get(win).document),
+            glue_context_get_global: () =>
+                store(window.document),
 
-            document_create_element: (doc, ty_ptr, ty_len) =>
-                store(get(doc).createElement(str(ty_ptr, ty_len))),
+            glue_context_get_root: (context) => {
+                const target = get(context).querySelector(".turubai-render-target");
+                if (!target) return 0;
+                const centerer = document.createElement("div");
+                centerer.style.display = "flex";
+                centerer.style.justifyContent = "center";
+                centerer.style.alignItems = "center";
+                centerer.style.width = "100%";
+                centerer.style.height = "100%";
+                centerer.style.boxSizing = "border-box";
+                target.appendChild(centerer);
+                return store(centerer);
+            },
 
-            document_query_selector: (doc, query_ptr, query_len) =>
-                store(get(doc).querySelector(str(query_ptr, query_len))),
+            // ── Text ───────────────────────────────────────────────────────────
 
-            html_element_set_attribute: (elem, attr_ptr, attr_len, val_ptr, val_len) => {
-                const url = new URL(window.location.href);
-                const username = url.pathname.split("/")[1];
-                let attr = str(attr_ptr, attr_len);
-                let val = str(val_ptr, val_len);
-                if (username[0] === '@') {
-                    if (attr === 'src') {
-                        val = '/' + username + val;
-                    }
+            glue_context_create_text: (context) =>
+                store(get(context).createElement("p")),
+
+            glue_text_set_text: (text, ptr, len) => {
+                get(text).textContent = str(ptr, len);
+            },
+
+            glue_text_set_color: (text, variant, packed) => {
+                get(text).style.color = cssColor(variant, packed);
+            },
+
+            glue_text_set_font: (text, family_ptr, family_len, size, weight, italic) => {
+                const elem = get(text);
+                elem.style.fontFamily = str(family_ptr, family_len);
+                elem.style.fontSize = `${size}pt`;
+                elem.style.fontWeight = weight;
+                elem.style.fontStyle = italic ? "italic" : "normal";
+            },
+
+            glue_text_set_decoration: (text, ul_style, ul_cv, ul_c, st_style, st_cv, st_c) => {
+                const elem = get(text);
+                const lineStyleMap = { 1: "solid", 2: "solid", 3: "double", 4: "dotted", 5: "dashed" };
+                const lines = [];
+                if (ul_style !== 0) lines.push("underline");
+                if (st_style !== 0) lines.push("line-through");
+                if (lines.length === 0) {
+                    elem.style.textDecorationLine = "none";
+                    return;
                 }
-
-                get(elem).setAttribute(attr, val)
+                elem.style.textDecorationLine = lines.join(" ");
+                const activeStyle = ul_style !== 0 ? ul_style : st_style;
+                elem.style.textDecorationStyle = lineStyleMap[activeStyle] ?? "solid";
+                const [cv, c] = ul_style !== 0 ? [ul_cv, ul_c] : [st_cv, st_c];
+                elem.style.textDecorationColor = cssColor(cv, c);
             },
 
-            html_element_set_style: (elem, prop_ptr, prop_len, val_ptr, val_len) =>
-                get(elem).style.setProperty(str(prop_ptr, prop_len), str(val_ptr, val_len)),
+            // ── Picture ────────────────────────────────────────────────────────
 
-            html_element_set_text_content: (elem, text_ptr, text_len) => {
-                get(elem).textContent = str(text_ptr, text_len);
+            glue_context_create_picture: (context) => {
+                const img = get(context).createElement("img");
+                img.style.width = "100%";
+                img.style.height = "100%";
+                return store(img);
             },
 
-            html_element_append_child: (parent, child) =>
-                get(parent).appendChild(get(child)),
+            glue_picture_set_src: (picture, ptr, len) => {
+                const url = new URL(window.location.href);
+                const uname = url.pathname.split("/")[1];
+                let src = str(ptr, len);
+                if (uname[0] === '@')
+                    src = '/' + uname + src;
+
+                get(picture).src = src;
+            },
+
+            glue_picture_set_fitting: (picture, fit) => {
+                // 0=Stretch, 1=Cover, 2=Contain
+                get(picture).style.objectFit = ["fill", "cover", "contain"][fit] ?? "fill";
+            },
+
+            // ── HStack ─────────────────────────────────────────────────────────
+
+            glue_context_create_hstack: (context) => {
+                const div = get(context).createElement("div");
+                div.style.display = "flex";
+                div.style.flexDirection = "row";
+                return store(div);
+            },
+
+            glue_hstack_set_spacing: (hstack, variant, value) => {
+                get(hstack).style.gap = cssUnit(variant, value);
+            },
+
+            glue_hstack_set_alignment: (hstack, alignment) => {
+                // VerticalAlignment: 0=Top, 1=Center, 2=Bottom
+                get(hstack).style.alignItems = ["flex-start", "center", "flex-end"][alignment] ?? "flex-start";
+            },
+
+            glue_hstack_set_fills_width: (hstack, fills) => {
+                if (fills) get(hstack).style.width = "100%";
+            },
+
+            // ── VStack ─────────────────────────────────────────────────────────
+
+            glue_context_create_vstack: (context) => {
+                const div = get(context).createElement("div");
+                div.style.display = "flex";
+                div.style.flexDirection = "column";
+                return store(div);
+            },
+
+            glue_vstack_set_spacing: (vstack, variant, value) => {
+                get(vstack).style.gap = cssUnit(variant, value);
+            },
+
+            glue_vstack_set_alignment: (vstack, alignment) => {
+                // HorizontalAlignment: 0=Leading, 1=Center, 2=Trailing
+                get(vstack).style.alignItems = ["flex-start", "center", "flex-end"][alignment] ?? "flex-start";
+            },
+
+            glue_vstack_set_fills_height: (vstack, fills) => {
+                if (fills) get(vstack).style.height = "100%";
+            },
+
+            // ── Spacer ─────────────────────────────────────────────────────────
+
+            glue_context_create_spacer: (context) => {
+                const div = get(context).createElement("div");
+                div.style.flex = "1";
+                return store(div);
+            },
+
+            // ── Background ─────────────────────────────────────────────────────
+
+            glue_context_create_background: (context) =>
+                store(get(context).createElement("div")),
+
+            glue_background_set_color: (bg, variant, packed) => {
+                get(bg).style.backgroundColor = cssColor(variant, packed);
+            },
+
+            // ── Padding ────────────────────────────────────────────────────────
+
+            glue_context_create_padding: (context) => {
+                const div = get(context).createElement("div");
+                div.style.boxSizing = "border-box";
+                return store(div);
+            },
+
+            glue_padding_set_insets: (padding, top, left, bottom, right) => {
+                const elem = get(padding);
+                elem.style.paddingTop = `${top}px`;
+                elem.style.paddingLeft = `${left}px`;
+                elem.style.paddingBottom = `${bottom}px`;
+                elem.style.paddingRight = `${right}px`;
+            },
+
+            // ── Frame ──────────────────────────────────────────────────────────
+
+            glue_context_create_frame: (context) =>
+                store(get(context).createElement("div")),
+
+            glue_frame_set_max_width: (frame, v, val) => { get(frame).style.maxWidth = cssUnit(v, val); },
+            glue_frame_set_max_height: (frame, v, val) => { get(frame).style.maxHeight = cssUnit(v, val); },
+            glue_frame_set_min_width: (frame, v, val) => { get(frame).style.minWidth = cssUnit(v, val); },
+            glue_frame_set_min_height: (frame, v, val) => { get(frame).style.minHeight = cssUnit(v, val); },
+            glue_frame_set_width: (frame, v, val) => { get(frame).style.width = cssUnit(v, val); },
+            glue_frame_set_height: (frame, v, val) => { get(frame).style.height = cssUnit(v, val); },
+
+            // ── Group (Component / Window) ─────────────────────────────────────
+
+            glue_context_create_group: (context) =>
+                store(get(context).createElement("div")),
+
+            // ── Node tree ──────────────────────────────────────────────────────
+
+            glue_node_append_child: (parent, child) => {
+                get(parent).appendChild(get(child));
+            },
+
+            glue_node_remove_child: (parent, child) => {
+                get(parent).removeChild(get(child));
+            },
         },
     };
 }
@@ -124,6 +300,10 @@ function getBoxBlocksImports(wasmMemory, wasmExports) {
                 const username = new URL(window.location.href).pathname.split("/")[1];
                 return writeStr(username);
             },
+            external_format_time: (time) => {
+                const date = new Date(time * 1000);
+                return writeStr(date.toLocaleString());
+            },
             external_start_fetch_display_name: (usernamePtr, len, id) => {
                 const username = str(usernamePtr, len);
                 fetch(`/api/user/display-name?username=${encodeURIComponent(username)}`)
@@ -136,7 +316,32 @@ function getBoxBlocksImports(wasmMemory, wasmExports) {
                         mem[ptr + encoded.length] = 0;
                         wasmExports.on_display_name_fetched(id, ptr, encoded.length);
                     });
-            }
+            },
+            external_start_fetch_threads: (usernamePtr, usernameLen, offset, size, id) => {
+                const username = str(usernamePtr, usernameLen).substring(1);
+                fetch(`/api/user/threads?username=${encodeURIComponent(username)}&offset=${encodeURIComponent(offset)}&size=${encodeURIComponent(size)}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        console.log(data);
+                        data.forEach(thread => {
+                            function encodeString(str) {
+                                const encoded = new TextEncoder().encode(str);
+                                const ptr = wasmExports.alloc(encoded.length + 1);
+                                const mem = new Uint8Array(wasmMemory.buffer);
+                                mem.set(encoded, ptr);
+                                mem[ptr + encoded.length] = 0;
+                                return [encoded, ptr, encoded.length];
+                            }
+
+                            const [, pUsername, lUsername] = encodeString(thread.Username);
+                            const [, pTitle, lTitle] = encodeString(thread.Title);
+                            const [, pMessage, lMessage] = encodeString(thread.Message);
+
+                            wasmExports.thread_fetched(id, pUsername, lUsername, pTitle, lTitle, pMessage, lMessage, thread.Time);
+                        });
+                        wasmExports.on_threads_fetched(id);
+                    })
+            },
         }
     }
 }

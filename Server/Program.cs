@@ -15,12 +15,21 @@ using MySql.Data.MySqlClient;
     string password = "12345";
     if (Environment.GetEnvironmentVariable("DATABASE_PASSWORD") != null)
         password = Environment.GetEnvironmentVariable("DATABASE_PASSWORD")!;
+
     return (address, user, password);
 }
 
 
 var (databaseAddress, databaseUser, databasePassword) = GetSqlServerLoginDetails();
 var connectionString = $"server={databaseAddress};uid={databaseUser};pwd={databasePassword}";
+
+var mysqlConnectionStringBuilder = new MySqlConnectionStringBuilder(connectionString)
+{
+    Server = databaseAddress,
+    UserID = databaseUser,
+    Password = databasePassword
+};
+connectionString = mysqlConnectionStringBuilder.ConnectionString;
 
 // Try to connect to our SQL server
 MySqlConnection sqlConn = new MySqlConnection();
@@ -42,6 +51,7 @@ catch (MySqlException ex)
             Environment.Exit(1);
             break;
     }
+    throw;
 }
 
 

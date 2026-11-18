@@ -291,6 +291,14 @@ public class Server
                         throw new ArgumentOutOfRangeException();
                 }
             }
+            catch (InvalidDataException e)
+            {
+                Console.WriteLine($"Malformed provider message: {e.Message}");
+
+                if (username != null)
+                    Providers.Remove(username);
+                break;
+            }
             catch (WebSocketException e)
             {
                 var ipAddress = context.Connection.RemoteIpAddress;
@@ -576,13 +584,36 @@ public class Server
         }
 
         var message = new Message(MessageType.GetWasmPage, []);
-        var returnMessage = await client.SendMessage(message);
+        Message returnMessage;
+        try
+        {
+            returnMessage = await client.SendMessage(message);
+        }
+        catch (WebSocketException)
+        {
+            // A provider may disconnect between the lookup above and the request.
+            // Do not let a stale WebSocket turn into a 500 response.
+            Providers.Remove(username);
+            context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+            return;
+        }
         var wasmBytes = returnMessage.RawData.ToArray();
 
         context.Response.ContentType = "application/wasm";
         context.Response.StatusCode = (int)returnMessage.Header.StatusCode;
 
-        await context.Response.Body.WriteAsync(wasmBytes);
+        try
+        {
+            await context.Response.Body.WriteAsync(wasmBytes, context.RequestAborted);
+        }
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+        {
+            // The browser navigated away before the WASM response was complete.
+        }
+        catch (ObjectDisposedException) when (context.RequestAborted.IsCancellationRequested)
+        {
+            // The response stream was closed by the client.
+        }
     }
 
     private async Task ClientGetResource(HttpContext context)

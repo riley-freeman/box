@@ -488,6 +488,11 @@ public class Provider : IDisposable
             {
                 break;
             }
+            catch (InvalidDataException e)
+            {
+                Console.Error.WriteLine($"Invalid server message: {e.Message}");
+                break;
+            }
             catch (WebSocketException e) when (
                 e.WebSocketErrorCode == WebSocketError.ConnectionClosedPrematurely ||
                 e.WebSocketErrorCode == WebSocketError.Faulted)

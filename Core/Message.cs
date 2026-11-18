@@ -82,8 +82,10 @@ public class Message
             headerBytes.CopyTo(buffer, 0);
             bodyChunk.CopyTo(buffer, headerBytes.Length);
 
-            var isLast = part == totalParts;
-            await socket.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Binary, isLast, CancellationToken.None);
+            // Each protocol part has its own header, so it must also be a complete
+            // WebSocket message. Sending all parts as one fragmented WebSocket
+            // message lets a receiver observe a continuation without a header.
+            await socket.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Binary, true, CancellationToken.None);
         }
     }
 
@@ -100,20 +102,50 @@ public class Message
     public static async Task<Message?> ReceiveAsync(WebSocket socket)
     {
         var buffer = new byte[Config.MaxBufferSize];
-        var result = await socket.ReceiveAsync(buffer, CancellationToken.None);
-        switch (result.MessageType)
+        using var payloadStream = new MemoryStream();
+        WebSocketReceiveResult result;
+        WebSocketMessageType? messageType = null;
+
+        do
+        {
+            result = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+
+            if (result.MessageType == WebSocketMessageType.Close)
+            {
+                var closeInfo = new CloseInformation
+                {
+                    CloseStatus = result.CloseStatus ?? WebSocketCloseStatus.Empty,
+                    Description = result.CloseStatusDescription ?? string.Empty,
+                };
+
+                var json = JsonSerializer.Serialize(closeInfo);
+                var encoded = Encoding.UTF8.GetBytes(json);
+                return new Message(MessageType.CloseRequest, encoded);
+            }
+
+            messageType ??= result.MessageType;
+            if (result.MessageType != messageType)
+                throw new InvalidDataException("A WebSocket message changed type between fragments.");
+
+            payloadStream.Write(buffer, 0, result.Count);
+        }
+        while (!result.EndOfMessage);
+
+        var payload = payloadStream.ToArray();
+        switch (messageType)
         {
             case WebSocketMessageType.Text:
-                return FromBytes(buffer, result.Count);
+                return FromBytes(payload, payload.Length);
 
             case WebSocketMessageType.Binary:
                 {
-                    var buffer_string = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                    var header_end = Array.IndexOf(payload, (byte)'\n');
+                    if (header_end < 0)
+                        throw new InvalidDataException("Received a binary protocol frame without a header delimiter.");
 
-                    var header_end = buffer_string.IndexOf('\n');
-                    var header_string = buffer_string[0..header_end];
+                    var header_string = Encoding.UTF8.GetString(payload, 0, header_end);
 
-                    var body = buffer[(header_end + 1)..result.Count];
+                    var body = payload[(header_end + 1)..];
 
                     var header = JsonSerializer.Deserialize<MessageHeader>(header_string);
 
@@ -135,20 +167,6 @@ public class Message
                     }
 
                     return null;
-                }
-
-            case WebSocketMessageType.Close:
-                {
-                    var closeInfo = new CloseInformation
-                    {
-                        CloseStatus = result.CloseStatus!.Value,
-                        Description = result.CloseStatusDescription!,
-                    };
-
-                    var json = JsonSerializer.Serialize(closeInfo);
-                    var encoded = Encoding.UTF8.GetBytes(json);
-
-                    return new Message(MessageType.CloseRequest, encoded);
                 }
         }
 

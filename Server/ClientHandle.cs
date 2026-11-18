@@ -20,6 +20,10 @@ public class ClientHandle(WebSocket webSocket)
 
     public async Task<Message> SendMessage(Message message)
     {
+        if (webSocket.State != WebSocketState.Open)
+            throw new WebSocketException(WebSocketError.InvalidState,
+                "The provider WebSocket is not open.");
+
         var h = message.Header;
         h.ID = NextMessageID++;
         message.Header = h;
